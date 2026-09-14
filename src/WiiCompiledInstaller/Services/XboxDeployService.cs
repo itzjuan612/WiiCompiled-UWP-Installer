@@ -109,6 +109,22 @@ public sealed class XboxDeployService : IDisposable
         return request;
     }
 
+    /// <summary>
+    /// Multipart part with a curl-identical Content-Disposition. MultipartFormDataContent's
+    /// fileName overload also emits "filename*=utf-8''...", which the Dev Portal's parser
+    /// does not understand - it then reports "Missing .msix/.appx in uploaded files" even
+    /// though the part is named and named correctly.
+    /// </summary>
+    private static HttpContent WithPortalDisposition(HttpContent content, string fileName)
+    {
+        content.Headers.ContentDisposition = new ContentDispositionHeaderValue("form-data")
+        {
+            Name = "\"" + "file" + "\"",
+            FileName = "\"" + fileName + "\"",
+        };
+        return content;
+    }
+
     /// <summary>Installs the developer certificate (.cer) so the signed appx is trusted. Safe to repeat.</summary>
     public async Task<bool> InstallCertificateAsync(string cerPath, IProgress<string> progress, CancellationToken ct)
     {
@@ -116,7 +132,7 @@ public sealed class XboxDeployService : IDisposable
         var body = new MultipartFormDataContent();
         var content = new ByteArrayContent(await File.ReadAllBytesAsync(cerPath, ct));
         content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        body.Add(content, "file", Path.GetFileName(cerPath));
+        body.Add(WithPortalDisposition(content, Path.GetFileName(cerPath)), "file");
         var certRequest = WithCsrf(HttpMethod.Post, "api/app/packagemanager/certificate");
         certRequest.Content = body;
         var response = await _http.SendAsync(certRequest, ct);
@@ -136,7 +152,7 @@ public sealed class XboxDeployService : IDisposable
         {
             var content = new StreamContent(stream);
             content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            body.Add(content, "file", leaf);
+            body.Add(WithPortalDisposition(content, leaf), "file");
             // The appx name MUST also be in the query string (portal quirk).
             var upload = WithCsrf(HttpMethod.Post, $"api/app/packagemanager/package?package={Uri.EscapeDataString(leaf)}");
             upload.Content = body;
