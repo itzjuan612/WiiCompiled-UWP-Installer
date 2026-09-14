@@ -62,6 +62,13 @@ WiiCompiled-UWP-Installer --headless preflight bootstrap translate configure bui
 `publish.ps1` produces the portable, self-contained folder-drop under
 `publish\WiiCompiled-UWP-Installer\` - a single self-contained exe plus its `certs\` and `patches\` folders.
 
+## Antivirus false positive flag
+
+During testing, I discovered that my antivirus could flag this software as malicious. It is however a false
+positive and is safe to use. Best to add an exclusion for this program if your antivirus also flags it.
+
+Here's the VirusTotal scan for proof: https://www.virustotal.com/gui/file/a84c5af497f414fec8e831e34e65729fae8daec2c389d7335711e41e121f3382?nocache=1
+
 ## Legal
 
 GPL-3.0. Not affiliated with Nintendo or the Retro Rewind team.
