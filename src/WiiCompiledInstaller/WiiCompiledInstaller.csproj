@@ -9,14 +9,15 @@
     <AssemblyName>WiiCompiled-UWP-Installer</AssemblyName>
     <RootNamespace>WiiCompiledInstaller</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Product>WiiCompiled UWP Installer</Product>
     <Copyright>GPL-3.0</Copyright>
-    <!-- Folder-drop portable publish defaults; see publish.ps1. -->
+    <!-- Portable publish defaults; see publish.ps1. Single-file: the .NET runtime is
+         embedded in the exe, certs\ and patches\ stay loose next to it. -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>false</PublishSingleFile>
-    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 

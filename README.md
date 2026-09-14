@@ -60,7 +60,7 @@ WiiCompiled-UWP-Installer --headless preflight bootstrap translate configure bui
 ```
 
 `publish.ps1` produces the portable, self-contained folder-drop under
-`publish\WiiCompiled-UWP-Installer\`.
+`publish\WiiCompiled-UWP-Installer\` - a single self-contained exe plus its `certs\` and `patches\` folders.
 
 ## Legal
 

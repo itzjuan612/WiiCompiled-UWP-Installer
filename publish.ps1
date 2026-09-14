@@ -1,6 +1,7 @@
-﻿# Builds the portable, folder-drop installer: WiiCompiled-UWP-Installer.exe plus
-# the bundled certs/ and patches/ trees next to it. Publish once, ship the
-# folder (or a zip of it); no .NET install is needed on the target machine.
+﻿# Builds the portable installer: a single self-contained WiiCompiled-UWP-Installer.exe
+# (the whole .NET runtime is embedded) with the bundled certs/ and patches/ folders
+# next to it. Ship the folder (or a zip of it); no .NET install is needed on the
+# target machine.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $proj = Join-Path $root 'src\WiiCompiledInstaller\WiiCompiledInstaller.csproj'
@@ -17,3 +18,4 @@ foreach ($dir in 'certs', 'patches') {
 
 "Published: $out"
 "Run $out\WiiCompiled-UWP-Installer.exe (GUI) or add --headless <steps> (CLI)."
+"Keep certs\ and patches\ next to the exe."
