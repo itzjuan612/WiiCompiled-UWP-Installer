@@ -176,12 +176,36 @@ public static class ToolchainLocator
         }
 
         // Standard install location + the repo's own partial-SDK convention.
-        foreach (var extra in new[]
+        var extras = new List<string>
         {
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Windows Kits", "10"),
             @"C:\WindowsSDK",
             Environment.GetEnvironmentVariable("WindowsSDKDir") ?? "",
-        })
+        };
+        // MKW_SDK_ROOT points straight at a Windows SDK root (...\Windows Kits\10 or a
+        // partial-SDK dir); wins over the scan, same knob as MKW_MSVC_ROOT for the toolset.
+        var forcedSdk = Environment.GetEnvironmentVariable("MKW_SDK_ROOT");
+        if (!string.IsNullOrWhiteSpace(forcedSdk))
+            extras.Insert(0, forcedSdk);
+        // The SDK is happily relocated to non-system drives (the registry still points at
+        // the original install path); probe every fixed drive root. The folder may carry any
+        // name, so recognise it by content: SDKManifest.xml at its root (plus the standard
+        // ...\Windows Kits\10 layout directly under the drive root).
+        foreach (var drive in DriveInfo.GetDrives().Where(d =>
+                     d.DriveType == DriveType.Fixed && d.IsReady))
+        {
+            extras.Add(Path.Combine(drive.RootDirectory.FullName, "Windows Kits", "10"));
+            try
+            {
+                foreach (var dir in Directory.EnumerateDirectories(drive.RootDirectory.FullName))
+                {
+                    if (File.Exists(Path.Combine(dir, "SDKManifest.xml")))
+                        extras.Add(dir);
+                }
+            }
+            catch { /* unreadable drive root: nothing to probe there */ }
+        }
+        foreach (var extra in extras)
         {
             if (!string.IsNullOrEmpty(extra) && Directory.Exists(extra))
                 candidates.Add(extra.TrimEnd('\\'));

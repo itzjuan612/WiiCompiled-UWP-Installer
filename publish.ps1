@@ -15,6 +15,9 @@ foreach ($dir in 'certs', 'patches') {
         Copy-Item $src (Join-Path $out $dir) -Recurse -Force
     }
 }
+# Never ship certificate private keys in the published folder (the release notes
+# promise it: the tool mints its own dev cert locally).
+Get-ChildItem $out -Recurse -Filter *.pfx | Remove-Item -Force
 
 "Published: $out"
 "Run $out\WiiCompiled-UWP-Installer.exe (GUI) or add --headless <steps> (CLI)."
