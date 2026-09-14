@@ -31,7 +31,7 @@ public sealed class UwpBuildService
         Directory.CreateDirectory(_layout.NativeBuildUwp);
         var lines = new List<string>
         {
-            "# CMake cache file (seeded by WiiCompiled-Installer for UWP/MSVC: SDL-uwp fork + local Dawn, offline deps)",
+            "# CMake cache file (seeded by WiiCompiled-UWP-Installer for UWP/MSVC: SDL-uwp fork + local Dawn, offline deps)",
             $"CMAKE_HOME_DIRECTORY:INTERNAL={Path.Combine(_layout.Root, "runtime").Replace('\\', '/')}",
             $"FETCHCONTENT_SOURCE_DIR_SDL:PATH={depsRoot}/SDL-uwp",
             $"FETCHCONTENT_SOURCE_DIR_ABSEIL-CPP:PATH={depsRoot}/abseil-cpp",

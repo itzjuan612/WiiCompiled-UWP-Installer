@@ -16,7 +16,7 @@ public static class Headless
     {
         if (steps.Length == 0)
         {
-            Console.Error.WriteLine("usage: WiiCompiled-Installer --headless <preflight|bootstrap|translate|configure|build|all> [more steps...]");
+            Console.Error.WriteLine("usage: WiiCompiled-UWP-Installer --headless <preflight|bootstrap|translate|configure|build|all> [more steps...]");
             return 2;
         }
         foreach (var s in steps)

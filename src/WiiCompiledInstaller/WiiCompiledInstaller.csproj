@@ -6,11 +6,11 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>WiiCompiled-Installer</AssemblyName>
+    <AssemblyName>WiiCompiled-UWP-Installer</AssemblyName>
     <RootNamespace>WiiCompiledInstaller</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
-    <Product>WiiCompiled Installer</Product>
+    <Version>1.0.1</Version>
+    <Product>WiiCompiled UWP Installer</Product>
     <Copyright>GPL-3.0</Copyright>
     <!-- Folder-drop portable publish defaults; see publish.ps1. -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
