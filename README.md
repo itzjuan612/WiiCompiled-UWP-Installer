@@ -1,4 +1,4 @@
-﻿# WiiCompiled-Installer
+﻿# WiiCompiled-UWP-Installer
 
 A portable Windows GUI that automates building the **WiiCompiled** UWP package
 (.appx) for Xbox Series consoles, with Retro Rewind support and one-click
