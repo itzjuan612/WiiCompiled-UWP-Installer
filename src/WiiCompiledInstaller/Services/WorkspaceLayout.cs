@@ -1,4 +1,4 @@
-using WiiCompiledInstaller.Models;
+﻿using WiiCompiledInstaller.Models;
 
 namespace WiiCompiledInstaller.Services;
 
@@ -16,14 +16,16 @@ public sealed class WorkspaceLayout
     /// </summary>
     public static string ProjectRootIn(string cloneRoot)
     {
-        if (LooksLikeRepoRoot(cloneRoot)) return cloneRoot;
+        // The buildable root is whichever level actually carries Launcher\build-uwp-msvc.ps1.
+        // (.git alone is not proof: a clone of this repo puts it at the clone root while
+        // Launcher lives under wiicompiled\.)
+        if (File.Exists(Path.Combine(cloneRoot, "Launcher", "build-uwp-msvc.ps1"))) return cloneRoot;
         var nested = Path.Combine(cloneRoot, "wiicompiled");
-        return LooksLikeRepoRoot(nested) ? nested : cloneRoot;
+        if (File.Exists(Path.Combine(nested, "Launcher", "build-uwp-msvc.ps1"))) return nested;
+        if (Directory.Exists(Path.Combine(cloneRoot, ".git"))) return cloneRoot;
+        if (Directory.Exists(Path.Combine(nested, ".git"))) return nested;
+        return cloneRoot;
     }
-
-    private static bool LooksLikeRepoRoot(string dir) =>
-        Directory.Exists(Path.Combine(dir, ".git")) ||
-        File.Exists(Path.Combine(dir, "Launcher", "build-uwp-msvc.ps1"));
 
     public string Root { get; }
     public WorkspaceLayout(string root) { Root = Path.GetFullPath(root); }
@@ -65,33 +67,59 @@ public sealed class RepoService
         File.Exists(Path.Combine(dir, ".git", "HEAD")) &&
         File.Exists(Path.Combine(dir, "Launcher", "build-uwp-msvc.ps1"));
 
-    public async Task<bool> EnsureCloneAsync(string targetDir, IProgress<string> log, CancellationToken ct)
+    /// <summary>
+    /// Ensures <paramref name="projectDir"/> holds a usable WiiCompiled tree and returns the
+    /// resolved project root (null on failure). Handles the repo's nested layout: a clone of
+    /// WiiCompiled-Xbox-UWP carries its buildable tree under wiicompiled\, so the clone may
+    /// land in the parent folder and the project root is one level below the clone root.
+    /// </summary>
+    public async Task<string?> EnsureCloneAsync(string projectDir, IProgress<string> log, CancellationToken ct)
     {
-        if (LooksLikeRepo(targetDir))
+        projectDir = Path.GetFullPath(projectDir);
+
+        var ready = WorkspaceLayout.ProjectRootIn(projectDir);
+        if (File.Exists(Path.Combine(ready, "Launcher", "build-uwp-msvc.ps1")))
         {
-            log.Report($"Workspace already has the repo: {targetDir}");
-            return true;
+            log.Report($"Workspace already has the repo: {ready}");
+            return ready;
         }
 
-        if (Directory.Exists(targetDir) && Directory.EnumerateFileSystemEntries(targetDir).Any())
+        // A fresh workspace named ...\wiicompiled should clone into its parent, so the
+        // checkout's own wiicompiled\ subfolder becomes the project root instead of nesting.
+        var target = projectDir;
+        if (!Directory.Exists(target) &&
+            string.Equals(Path.GetFileName(target), "wiicompiled", StringComparison.OrdinalIgnoreCase))
         {
-            log.Report($"ERROR: target is not an empty folder and is not a WiiCompiled repo:\n  {targetDir}");
-            return false;
+            target = Path.GetDirectoryName(target)!;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(targetDir)!);
-        var parent = Path.GetDirectoryName(targetDir)!;
-        var leaf = Path.GetFileName(targetDir);
-        log.Report($"Cloning {_settings.RepoUrl} -> {targetDir}");
+        if (Directory.Exists(target) && Directory.EnumerateFileSystemEntries(target).Any())
+        {
+            log.Report($"ERROR: target is not an empty folder and is not a WiiCompiled repo:\n  {target}");
+            return null;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        var parent = Path.GetDirectoryName(target)!;
+        var leaf = Path.GetFileName(target);
+        log.Report($"Cloning {_settings.RepoUrl} -> {target}");
         var r = await _runner.RunAsync("git",
             $"clone --depth 1 --progress \"{_settings.RepoUrl}\" \"{leaf}\"", parent,
             onLine: log, timeout: TimeSpan.FromMinutes(20), ct: ct).ConfigureAwait(false);
         if (!r.Success)
         {
             log.Report($"git clone failed (exit {r.ExitCode}). Check the URL and that git is on PATH.");
-            return false;
+            return null;
         }
-        return LooksLikeRepo(targetDir);
+
+        var root = WorkspaceLayout.ProjectRootIn(target);
+        if (!File.Exists(Path.Combine(root, "Launcher", "build-uwp-msvc.ps1")))
+        {
+            log.Report("Clone finished, but the expected layout is missing: no Launcher\\build-uwp-msvc.ps1 " +
+                       $"was found under {target} (or its wiicompiled\\ subfolder).");
+            return null;
+        }
+        return root;
     }
 
     public async Task<bool> PullAsync(WorkspaceLayout layout, IProgress<string> log, CancellationToken ct)

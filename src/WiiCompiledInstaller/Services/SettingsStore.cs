@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using WiiCompiledInstaller.Models;
 
@@ -34,7 +34,17 @@ public sealed class SettingsStore
         InstallerRoot = ResolvePortableRoot(InstallerRoot);
         SettingsPath = Path.Combine(InstallerRoot, "settings.json");
         Current = AppSettings.LoadOrReuse(SettingsPath, InstallerRoot);
+        NormalizeWorkspace();
     }
+
+    /// <summary>
+    /// The configured workspace folder may point at the clone root while the buildable
+    /// WiiCompiled tree lives one level below it (a clone of WiiCompiled-Xbox-UWP carries
+    /// a wiicompiled\ subfolder). Resolve that once here so every service - GUI and
+    /// headless - operates on the project root.
+    /// </summary>
+    private void NormalizeWorkspace() =>
+        Current.WorkspaceDir = WorkspaceLayout.ProjectRootIn(Current.WorkspaceDir);
 
     private static string ResolvePortableRoot(string start)
     {
@@ -71,5 +81,9 @@ public sealed class SettingsStore
         Saved?.Invoke(Current);
     }
 
-    public void Reload() => Current = AppSettings.LoadOrReuse(SettingsPath, InstallerRoot);
+    public void Reload()
+    {
+        Current = AppSettings.LoadOrReuse(SettingsPath, InstallerRoot);
+        NormalizeWorkspace();
+    }
 }

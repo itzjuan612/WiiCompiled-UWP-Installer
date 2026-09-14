@@ -10,13 +10,13 @@ namespace WiiCompiledInstaller;
 public static class Headless
 {
     private static readonly string[] Known =
-    { "preflight", "bootstrap", "translate", "configure", "build", "package", "deploy", "all" };
+    { "clone", "preflight", "bootstrap", "translate", "configure", "build", "package", "deploy", "all" };
 
     public static int Run(string[] steps)
     {
         if (steps.Length == 0)
         {
-            Console.Error.WriteLine("usage: WiiCompiled-UWP-Installer --headless <preflight|bootstrap|translate|configure|build|all> [more steps...]");
+            Console.Error.WriteLine("usage: WiiCompiled-UWP-Installer --headless <clone|preflight|bootstrap|translate|configure|build|all> [more steps...]");
             return 2;
         }
         foreach (var s in steps)
@@ -28,14 +28,16 @@ public static class Headless
 
         // "all" = the full local chain; deploy stays explicit (it touches a console).
         steps = steps.SelectMany(s => s == "all"
-            ? new[] { "preflight", "bootstrap", "translate", "configure", "build", "package" }
+            ? new[] { "clone", "preflight", "bootstrap", "translate", "configure", "build", "package" }
             : new[] { s }).ToArray();
 
         var store = new SettingsStore();
         var settings = store.Current;
         var layout = new WorkspaceLayout(settings.WorkspaceDir);
         var bootstrap = new BootstrapService(layout.Root);
-        var progress = new Progress<string>(Console.WriteLine);
+        // Synchronous reporter: Progress<T> posts to the (null) console SynchronizationContext
+        // via the ThreadPool, so on fast steps the process could exit before the lines printed.
+        var progress = new HeadlessProgress();
 
         var toolchain = ToolchainLocator.Locate(progress);
         if (!toolchain.IsComplete)
@@ -47,6 +49,22 @@ public static class Headless
         var ok = true;
         foreach (var step in steps)
         {
+            if (step == "clone")
+            {
+                var root = new RepoService(new ProcessRunner(), settings)
+                    .EnsureCloneAsync(settings.WorkspaceDir, progress, CancellationToken.None).Result;
+                if (root is null) { ok = false; continue; }
+                if (!string.Equals(Path.GetFullPath(root), Path.GetFullPath(settings.WorkspaceDir),
+                                   StringComparison.OrdinalIgnoreCase))
+                {
+                    settings.WorkspaceDir = root;
+                    store.Save();
+                    Console.WriteLine($"Workspace folder now points at the repo's project root: {root}");
+                }
+                layout = new WorkspaceLayout(settings.WorkspaceDir);
+                bootstrap = new BootstrapService(layout.Root);
+                continue;
+            }
             if (step == "preflight") { ok = toolchain.IsComplete; continue; }
             if (step == "bootstrap") { ok &= bootstrap.RunAsync(progress, CancellationToken.None).Result; continue; }
             if (step == "translate") { ok &= TranslateAsync(settings, layout, bootstrap, progress).Result; continue; }
@@ -127,4 +145,10 @@ public static class Headless
         progress.Report($"Base translation reuse: {reuse}");
         return await translation.TranslateAsync(settings, includeRetro: true, reuseBase: reuse, progress, CancellationToken.None);
     }
+}
+
+/// <summary>Console progress sink that reports on the calling thread.</summary>
+file sealed class HeadlessProgress : IProgress<string>
+{
+    public void Report(string value) => Console.WriteLine(value);
 }

@@ -152,9 +152,22 @@ public sealed class SetupPage : UserControl
         try
         {
             _log.Step("Clone / open workspace repo");
-            var ok = await _session.Repos.EnsureCloneAsync(layout.Root, new Progress<string>(s => _log.Info(s)), _cts.Token);
-            if (ok) _log.Success($"Workspace ready: {layout.Root}");
-            else _log.Error("Workspace not ready.");
+            var root = await _session.Repos.EnsureCloneAsync(layout.Root, new Progress<string>(s => _log.Info(s)), _cts.Token);
+            if (root is null)
+            {
+                _log.Error("Workspace not ready.");
+            }
+            else
+            {
+                if (!string.Equals(Path.GetFullPath(root), Path.GetFullPath(_session.Settings.WorkspaceDir),
+                                   StringComparison.OrdinalIgnoreCase))
+                {
+                    _session.Settings.WorkspaceDir = root;
+                    _session.Store.Save();
+                    _log.Info($"Workspace folder now points at the repo's project root: {root}");
+                }
+                _log.Success($"Workspace ready: {root}");
+            }
         }
         finally
         {

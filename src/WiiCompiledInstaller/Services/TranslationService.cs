@@ -77,9 +77,63 @@ public sealed class TranslationService
         return result.Success;
     }
 
+    /// <summary>
+    /// The translator reads Assets\main.dol + Assets\StaticR.rel from the workspace, but a
+    /// fresh clone cannot carry them (they are the user's own dump, gitignored). Copy them in
+    /// from the configured disc dump folder the first time translation runs.
+    /// </summary>
+    private bool StageDumpFiles(AppSettings settings, IProgress<string> progress)
+    {
+        var assets = Path.Combine(_layout.Assets);
+        var dol = Path.Combine(assets, "main.dol");
+        var rel = Path.Combine(assets, "StaticR.rel");
+        if (File.Exists(dol) && File.Exists(rel)) return true;
+
+        if (string.IsNullOrWhiteSpace(settings.DiscDumpDirectory) || !Directory.Exists(settings.DiscDumpDirectory))
+        {
+            progress.Report("ERROR: the workspace has no Assets\\main.dol / Assets\\StaticR.rel and no disc " +
+                            "dump folder is configured. Set it on the Setup page (the folder holding the " +
+                            "extracted disc, e.g. ...\\DATA).");
+            return false;
+        }
+
+        Directory.CreateDirectory(assets);
+        foreach (var (name, target) in new[] { ("main.dol", dol), ("StaticR.rel", rel) })
+        {
+            if (File.Exists(target)) continue;
+            var found = FindUnder(settings.DiscDumpDirectory, name);
+            if (found is null)
+            {
+                progress.Report($"ERROR: {name} was not found under {settings.DiscDumpDirectory}.");
+                return false;
+            }
+            File.Copy(found, target, overwrite: true);
+            progress.Report($"Staged {name} into Assets\\ from the disc dump.");
+        }
+        return true;
+    }
+
+    private static string? FindUnder(string root, string fileName)
+    {
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            string[] subdirs = Array.Empty<string>(), files = Array.Empty<string>();
+            try { subdirs = Directory.GetDirectories(dir); files = Directory.GetFiles(dir); }
+            catch { continue; }
+            var hit = Array.Find(files, x => string.Equals(Path.GetFileName(x), fileName, StringComparison.OrdinalIgnoreCase));
+            if (hit != null) return hit;
+            foreach (var d in subdirs) stack.Push(d);
+        }
+        return null;
+    }
+
     public async Task<bool> TranslateAsync(AppSettings settings, bool includeRetro, bool reuseBase,
         IProgress<string> progress, CancellationToken ct)
     {
+        if (!StageDumpFiles(settings, progress)) return false;
         var entry = ReadEntryPoint(Project);
         if (entry is null) { progress.Report("Could not read entry_point from recomp.yml"); return false; }
         var threads = Math.Max(1, Math.Min(Environment.ProcessorCount, 16));
