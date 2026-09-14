@@ -52,7 +52,7 @@ public sealed class SetupPage : UserControl
         {
             grid.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 8, 3, 3) }, 0, r);
             grid.Controls.Add(input, 1, r);
-            if (browse is not null) { browse.Height = 28; grid.Controls.Add(browse, 2, r); }
+            if (browse is not null) { grid.Controls.Add(browse, 2, r); }
             r++;
         }
 
@@ -69,15 +69,15 @@ public sealed class SetupPage : UserControl
         Row("Build jobs (0=auto)", _parallel);
 
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true };
-        var cloneBtn = new Button { Text = "Clone / Open repo", Height = 30 };
+        var cloneBtn = new Button { AutoSize = true, Text = "Clone / Open repo" };
         cloneBtn.Click += async (_, _) => await CloneAsync();
-        var saveBtn = new Button { Text = "Save settings", Height = 30 };
+        var saveBtn = new Button { AutoSize = true, Text = "Save settings" };
         saveBtn.Click += (_, _) => { CommitTo(_session.Settings); _session.Store.Save(); _log.Success("Settings saved."); };
-        var preBtn = new Button { Text = "Preflight toolchain", Height = 30 };
+        var preBtn = new Button { AutoSize = true, Text = "Preflight toolchain" };
         preBtn.Click += async (_, _) => await PreflightAsync();
-        var certBtn = new Button { Text = "Create dev cert", Height = 30 };
+        var certBtn = new Button { AutoSize = true, Text = "Create dev cert" };
         certBtn.Click += async (_, _) => await CreateCertAsync();
-        var cancelBtn = new Button { Text = "Cancel", Height = 30, Enabled = false };
+        var cancelBtn = new Button { AutoSize = true, Text = "Cancel", Enabled = false };
         cancelBtn.Click += (_, _) => _cts?.Cancel();
         actions.Controls.AddRange(new Control[] { cloneBtn, saveBtn, preBtn, certBtn, cancelBtn });
         _cancelButton = cancelBtn;
@@ -93,7 +93,7 @@ public sealed class SetupPage : UserControl
 
     private static Button FolderButton(TextBox target)
     {
-        var b = new Button { Text = "Browse..." };
+        var b = new Button { Text = "Browse...", AutoSize = true };
         b.Click += (_, _) =>
         {
             using var d = new FolderBrowserDialog { SelectedPath = target.Text };
@@ -104,7 +104,7 @@ public sealed class SetupPage : UserControl
 
     private static Button FileButton(TextBox target, string filter)
     {
-        var b = new Button { Text = "Browse..." };
+        var b = new Button { Text = "Browse...", AutoSize = true };
         b.Click += (_, _) =>
         {
             using var ofd = new OpenFileDialog { Filter = filter };

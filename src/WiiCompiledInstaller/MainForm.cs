@@ -11,14 +11,14 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "WiiCompiled Installer";
+        Text = "WiiCompiled UWP Installer";
         StartPosition = FormStartPosition.CenterScreen;
         Width = 1040;
         Height = 760;
         MinimumSize = new Size(860, 600);
 
         _session = new InstallerSession();
-        _log = new LogPane { Dock = DockStyle.Bottom, Height = 220 };
+        _log = new LogPane { Dock = DockStyle.Fill, Height = 220 };
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
         TabsSetup(tabs);
@@ -27,7 +27,7 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            SplitterDistance = Height - 260,
+            FixedPanel = FixedPanel.Panel2,
         };
         split.Panel1.Controls.Add(tabs);
         split.Panel2.Controls.Add(_log);
@@ -44,7 +44,14 @@ public sealed class MainForm : Form
         Controls.Add(split);
         Controls.Add(menu);
 
-        Load += (_, _) => _log.Info($"Installer root: {_session.Store.InstallerRoot}");
+        Load += (_, _) =>
+        {
+            // Size the splitter only after the form has its final (DPI-scaled) size.
+            var splitContainer = (SplitContainer)Controls[0];
+            splitContainer.SplitterDistance = Math.Max(splitContainer.Panel1MinSize,
+                splitContainer.Height - splitContainer.Panel2MinSize - 240);
+            _log.Info($"Installer root: {_session.Store.InstallerRoot}");
+        };
     }
 
     private void TabsSetup(TabControl tabs)

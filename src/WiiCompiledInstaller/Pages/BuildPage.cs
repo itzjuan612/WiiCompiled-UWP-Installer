@@ -1,4 +1,4 @@
-using WiiCompiledInstaller.Models;
+﻿using WiiCompiledInstaller.Models;
 using WiiCompiledInstaller.Services;
 
 namespace WiiCompiledInstaller.Pages;
@@ -32,21 +32,22 @@ public sealed class BuildPage : UserControl
         Padding = new Padding(12);
 
         _grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
-        _grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        _grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        _grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        _grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(_grid);
 
         var row1 = Flow((_bootstrapBtn, "1. Bootstrap tools + deps", BootstrapAsync));
-        _bootstrapBtn.Width = 230;
-        var b = AddButton(row1, "2. Preflight toolchain", PreflightAsync); b.Width = 210;
+        var b = AddButton(row1, "2. Preflight toolchain", PreflightAsync);
         var row2 = new FlowLayoutPanel { Dock = DockStyle.Fill };
-        b = AddButton(row2, "3. Translate (base + mod)", TranslateAsync); b.Width = 210;
-        b = AddButton(row2, "4a. Compile WiiCompiled", () => CompileAsync("WiiCompiled")); b.Width = 210;
-        b = AddButton(row2, "4b. Compile RetroRewind", () => CompileAsync("RetroRewind")); b.Width = 210;
-        b = AddButton(row2, "Build all (3+4a+4b)", FullAsync); b.Width = 170; b.BackColor = Color.FromArgb(38, 74, 44);
-        _cancelBtn.Text = "Cancel"; _cancelBtn.Width = 90; _cancelBtn.Enabled = false;
+        b = AddButton(row2, "3. Translate (base + mod)", TranslateAsync);
+        b = AddButton(row2, "4a. Compile WiiCompiled", () => CompileAsync("WiiCompiled"));
+        b = AddButton(row2, "4b. Compile RetroRewind", () => CompileAsync("RetroRewind"));
+        b = AddButton(row2, "Build all (3+4a+4b)", FullAsync);
+        b.BackColor = Color.FromArgb(38, 74, 44);
+        b.ForeColor = Color.White;
+        _cancelBtn.Text = "Cancel"; _cancelBtn.AutoSize = true; _cancelBtn.Margin = new Padding(4); _cancelBtn.Enabled = false;
         _cancelBtn.Click += (_, _) => _cts.Cancel();
         row2.Controls.Add(_cancelBtn);
         row1.WrapContents = false; row2.WrapContents = false;
@@ -75,6 +76,8 @@ public sealed class BuildPage : UserControl
         foreach (var (button, text, action) in items)
         {
             button.Text = text;
+            button.AutoSize = true;
+            button.Margin = new Padding(4);
             button.Click += async (_, _) => await Guard(action);
             panel.Controls.Add(button);
         }
@@ -83,7 +86,7 @@ public sealed class BuildPage : UserControl
 
     private Button AddButton(FlowLayoutPanel panel, string text, Func<Task> action)
     {
-        var b = new Button { Text = text, Height = 34 };
+        var b = new Button { Text = text, AutoSize = true, Margin = new Padding(4) };
         b.Click += async (_, _) => await Guard(action);
         panel.Controls.Add(b);
         return b;
