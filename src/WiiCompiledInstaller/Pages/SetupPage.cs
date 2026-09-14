@@ -22,6 +22,7 @@ public sealed class SetupPage : UserControl
     private readonly TextBox _portal = BrowseField();
     private readonly TextBox _portalUser = BrowseField();
     private readonly TextBox _portalPw = new() { Width = 200, UseSystemPasswordChar = true };
+    private readonly TextBox _certSubject = new() { Width = 200 };
     private readonly NumericUpDown _parallel = new() { Minimum = 0, Maximum = 128, Width = 80 };
     private readonly Label _toolchainStatus = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
 
@@ -41,7 +42,7 @@ public sealed class SetupPage : UserControl
     private void Build()
     {
         Padding = new Padding(12);
-        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 11 };
+        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 12 };
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
@@ -61,6 +62,7 @@ public sealed class SetupPage : UserControl
         Row("RetroRewind6 folder", _rr, FolderButton(_rr));
         Row("Signing .pfx", _pfx, FileButton(_pfx, "PFX|*.pfx"));
         Row(".pfx password", _pfxPw);
+        Row("Cert subject", _certSubject);
         Row("Xbox portal", _portal);
         Row("Portal user", _portalUser);
         Row("Portal password", _portalPw);
@@ -73,9 +75,11 @@ public sealed class SetupPage : UserControl
         saveBtn.Click += (_, _) => { CommitTo(_session.Settings); _session.Store.Save(); _log.Success("Settings saved."); };
         var preBtn = new Button { Text = "Preflight toolchain", Height = 30 };
         preBtn.Click += async (_, _) => await PreflightAsync();
+        var certBtn = new Button { Text = "Create dev cert", Height = 30 };
+        certBtn.Click += async (_, _) => await CreateCertAsync();
         var cancelBtn = new Button { Text = "Cancel", Height = 30, Enabled = false };
         cancelBtn.Click += (_, _) => _cts?.Cancel();
-        actions.Controls.AddRange(new Control[] { cloneBtn, saveBtn, preBtn, cancelBtn });
+        actions.Controls.AddRange(new Control[] { cloneBtn, saveBtn, preBtn, certBtn, cancelBtn });
         _cancelButton = cancelBtn;
 
         grid.Controls.Add(actions, 1, r);
@@ -120,6 +124,7 @@ public sealed class SetupPage : UserControl
         _portal.Text = s.XboxPortalUrl;
         _portalUser.Text = s.XboxPortalUser;
         _portalPw.Text = s.XboxPortalPassword;
+        if (string.IsNullOrWhiteSpace(_certSubject.Text)) _certSubject.Text = "CN=MKWii";
         _parallel.Value = Math.Min(_parallel.Maximum, s.ParallelJobs);
     }
 
@@ -156,6 +161,29 @@ public sealed class SetupPage : UserControl
             _cancelButton.Enabled = false;
             _cts.Dispose();
             _cts = null;
+        }
+    }
+
+    private async Task CreateCertAsync()
+    {
+        CommitTo(_session.Settings);
+        if (CertificateService.Exists(_session.Settings) &&
+            MessageBox.Show("A signing certificate is already configured. " + _session.Settings.PfxPath + "  Create a new one and replace it?", "Create dev cert", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+        var pw = string.IsNullOrEmpty(_pfxPw.Text) ? "mkwii" : _pfxPw.Text;
+        _log.Step("Create dev certificate");
+        var ok = await CertificateService.CreateAsync(_session.Settings, _session.Store.InstallerRoot,
+            _certSubject.Text.Trim(), pw, s => _log.Info(s), CancellationToken.None);
+        if (ok)
+        {
+            _session.Store.Save();
+            _pfx.Text = _session.Settings.PfxPath;
+            _pfxPw.Text = _session.Settings.PfxPassword;
+            _log.Success("Signing certificate ready.");
+        }
+        else
+        {
+            _log.Error("Could not create the certificate.");
         }
     }
 
