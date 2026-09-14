@@ -1,0 +1,7 @@
+﻿bin/
+obj/
+publish/
+*.user
+workspace/
+certs/*.pfx
+settings.json

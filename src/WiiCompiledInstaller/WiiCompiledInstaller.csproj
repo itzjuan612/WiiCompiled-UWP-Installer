@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>WiiCompiled-Installer</AssemblyName>
+    <RootNamespace>WiiCompiledInstaller</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <Product>WiiCompiled Installer</Product>
+    <Copyright>GPL-3.0</Copyright>
+    <!-- Folder-drop portable publish defaults; see publish.ps1. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The bundled dev-signing certificate ships with the installer folder. -->
+    <None Include="..\..\certs\**\*" Condition="Exists('..\..\certs')" CopyToOutputDirectory="PreserveNewest" LinkBase="certs\" />
+    <!-- Port patches for the UWP dependency trees (SDL3-uwp fork + pinned Dawn). -->
+    <None Include="..\..\patches\**\*" Condition="Exists('..\..\patches')" CopyToOutputDirectory="PreserveNewest" LinkBase="patches\" />
+  </ItemGroup>
+
+</Project>
+

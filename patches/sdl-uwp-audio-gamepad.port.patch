@@ -1,0 +1,109 @@
+diff --git a/src/audio/wasapi/SDL_wasapi.c b/src/audio/wasapi/SDL_wasapi.c
+index 122fc8f..2a33f43 100644
+--- a/src/audio/wasapi/SDL_wasapi.c
++++ b/src/audio/wasapi/SDL_wasapi.c
+@@ -1,4 +1,4 @@
+-/*
++﻿/*
+   Simple DirectMedia Layer
+   Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
+ 
+@@ -94,6 +94,16 @@ typedef struct ManagementThreadPendingTask
+ } ManagementThreadPendingTask;
+ 
+ static SDL_Thread *ManagementThread = NULL;
++// The management thread's own ID, captured inside ManagementThreadEntry.
++// SDL_GetThreadID(ManagementThread) routes through the SDL object registry
++// (SDL_FindObject); if that lookup ever fails, it returns 0 and the
++// "am I the management thread?" self-detection in
++// WASAPI_ProxyToManagementThread would never fire, deadlocking the
++// management thread against its own queued task (observed live: a UWP run
++// parked forever with SDL_GetThreadID(ManagementThread) == 0). Comparing
++// against the ID captured at entry keeps the check working regardless of
++// the registry's state.
++static SDL_ThreadID ManagementThreadId = 0;
+ static ManagementThreadPendingTask *ManagementThreadPendingTasks = NULL;
+ static SDL_Mutex *ManagementThreadLock = NULL;
+ static SDL_Condition *ManagementThreadCondition = NULL;
+@@ -107,7 +117,7 @@ static void ManagementThreadMainloop(void)
+         if (!task) {
+             SDL_WaitCondition(ManagementThreadCondition, ManagementThreadLock); // block until there's something to do.
+         } else {
+-            SDL_SetAtomicPointer((void **) &ManagementThreadPendingTasks, task->next); // take task off the pending list.
++                    SDL_SetAtomicPointer((void **) &ManagementThreadPendingTasks, task->next); // take task off the pending list.
+             SDL_UnlockMutex(ManagementThreadLock);                       // let other things add to the list while we chew on this task.
+             task->result = task->fn(task->userdata);                     // run this task.
+             if (task->task_complete_sem) {                               // something waiting on result?
+@@ -125,7 +135,7 @@ static void ManagementThreadMainloop(void)
+ bool WASAPI_ProxyToManagementThread(ManagementThreadTask task, void *userdata, bool *wait_on_result)
+ {
+     // We want to block for a result, but we are already running from the management thread! Just run the task now so we don't deadlock.
+-    if ((wait_on_result) && (SDL_GetCurrentThreadID() == SDL_GetThreadID(ManagementThread))) {
++    if ((wait_on_result) && (SDL_GetCurrentThreadID() == ManagementThreadId)) {
+         *wait_on_result = task(userdata);
+         return true;  // completed!
+     }
+@@ -261,6 +271,7 @@ typedef struct
+ static int ManagementThreadEntry(void *userdata)
+ {
+     ManagementThreadEntryData *data = (ManagementThreadEntryData *)userdata;
++    ManagementThreadId = SDL_GetCurrentThreadID();
+ 
+     if (!ManagementThreadPrepare()) {
+         data->errorstr = SDL_strdup(SDL_GetError());
+@@ -286,6 +297,7 @@ static bool InitManagementThread(void)
+ 
+     SDL_SetAtomicPointer((void **) &ManagementThreadPendingTasks, NULL);
+     SDL_SetAtomicInt(&ManagementThreadShutdown, 0);
++    ManagementThreadId = 0;
+     ManagementThread = SDL_CreateThreadWithStackSize(ManagementThreadEntry, "SDLWASAPIMgmt", 256 * 1024, &mgmtdata); // !!! FIXME: maybe even smaller stack size?
+     if (!ManagementThread) {
+         return false;
+@@ -314,6 +326,7 @@ static void DeinitManagementThread(void)
+         SDL_UnlockMutex(ManagementThreadLock);
+         SDL_WaitThread(ManagementThread, NULL);
+         ManagementThread = NULL;
++        ManagementThreadId = 0;
+     }
+ 
+     SDL_assert(SDL_GetAtomicPointer((void **) &ManagementThreadPendingTasks) == NULL);
+diff --git a/src/audio/wasapi/SDL_wasapi_winrt.cpp b/src/audio/wasapi/SDL_wasapi_winrt.cpp
+index 3ef3cb2..2eb67c3 100644
+--- a/src/audio/wasapi/SDL_wasapi_winrt.cpp
++++ b/src/audio/wasapi/SDL_wasapi_winrt.cpp
+@@ -1,4 +1,4 @@
+-/*
++﻿/*
+   Simple DirectMedia Layer
+   Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+   This software is provided 'as-is', without any express or implied
+diff --git a/src/joystick/SDL_gamepad.c b/src/joystick/SDL_gamepad.c
+index dd5b416..53d6e5a 100644
+--- a/src/joystick/SDL_gamepad.c
++++ b/src/joystick/SDL_gamepad.c
+@@ -1353,13 +1353,24 @@ static GamepadMapping_t *SDL_CreateMappingForWGIGamepad(SDL_GUID guid)
+ {
+     bool existing;
+     char mapping_string[1024];
++    Uint16 vendor = 0;
++    Uint16 product = 0;
+ 
+     if (guid.data[15] != SDL_JOYSTICK_TYPE_GAMEPAD) {
+         return NULL;
+     }
+ 
+     SDL_strlcpy(mapping_string, "none,*,", sizeof(mapping_string));
+-    SDL_strlcat(mapping_string, "a:b0,b:b1,x:b2,y:b3,back:b6,start:b7,leftstick:b8,rightstick:b9,leftshoulder:b4,rightshoulder:b5,dpup:b10,dpdown:b12,dpleft:b13,dpright:b11,leftx:a1,lefty:a0~,rightx:a3,righty:a2~,lefttrigger:a4,righttrigger:a5,", sizeof(mapping_string));
++
++    SDL_GetJoystickGUIDInfo(guid, &vendor, &product, NULL, NULL);
++    if (vendor == USB_VENDOR_SONY && (product == USB_PRODUCT_SONY_DS5 || product == USB_PRODUCT_SONY_DS5_EDGE)) {
++        // The DualSense and DualSense Edge report a Sony-native button and axis
++        // order through Windows.Gaming.Input, which differs from the Xbox
++        // RawGameController layout used below.
++        SDL_strlcat(mapping_string, "a:b1,b:b2,x:b0,y:b3,back:b8,start:b9,guide:b12,leftshoulder:b4,rightshoulder:b5,leftstick:b10,rightstick:b11,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,rightx:a2,righty:a5,lefttrigger:a3,righttrigger:a4,", sizeof(mapping_string));
++    } else {
++        SDL_strlcat(mapping_string, "a:b0,b:b1,x:b2,y:b3,back:b6,start:b7,leftstick:b8,rightstick:b9,leftshoulder:b4,rightshoulder:b5,dpup:b10,dpdown:b12,dpleft:b13,dpright:b11,leftx:a1,lefty:a0~,rightx:a3,righty:a2~,lefttrigger:a4,righttrigger:a5,", sizeof(mapping_string));
++    }
+ 
+     return SDL_PrivateAddMappingForGUID(guid, mapping_string, &existing, SDL_GAMEPAD_MAPPING_PRIORITY_DEFAULT);
+ }

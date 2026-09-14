@@ -1,0 +1,23 @@
+diff --git a/public/common/TracySystem.cpp b/public/common/TracySystem.cpp
+index fcd4be4..4b25fb8 100644
+--- a/public/common/TracySystem.cpp
++++ b/public/common/TracySystem.cpp
+@@ -364,10 +364,18 @@ TRACY_API const char* GetUserLogin()
+ TRACY_API const char* GetUserFullName()
+ {
+ #if defined _WIN32
++    // GetUserNameExA/NameDisplay are desktop-only in the SDK; on the UWP Store
++    // partition (WINAPI_PARTITION_DESKTOP == 0) the declaration does not exist.
++    // Degraded display name ("(?)") is fine for a profiler string. Desktop
++    // builds (partition == 1) behave exactly as before.
++#  if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
++    return nullptr;
++#  else
+     static char buf[1024];
+     ULONG size = sizeof( buf );
+     if( GetUserNameExA( NameDisplay, buf, &size ) ) return buf;
+     return nullptr;
++#  endif
+ #elif defined __ANDROID__
+     const auto passwd = getpwuid( getuid() );
+     if( passwd && passwd->pw_gecos && *passwd->pw_gecos ) return passwd->pw_gecos;
