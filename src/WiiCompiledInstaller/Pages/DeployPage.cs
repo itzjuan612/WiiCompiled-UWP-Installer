@@ -35,6 +35,7 @@ public sealed class DeployPage : UserControl
         var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
         buttons.Controls.Add(MakeButton("Build + sign appx", PackageAsync));
         buttons.Controls.Add(MakeButton("Install certificate on console", CertAsync));
+        buttons.Controls.Add(MakeButton("Test connection", TestConnectionAsync));
         buttons.Controls.Add(MakeButton("DEPLOY to Xbox", DeployAsync));
         buttons.Controls.Add(MakeButton("Install on this PC", PcInstallAsync));
         grid.Controls.Add(buttons, 0, r);
@@ -111,6 +112,21 @@ public sealed class DeployPage : UserControl
             using var svc = new XboxDeployService(_session.Settings.XboxPortalUrl!, _session.Settings.XboxPortalUser ?? "", _session.Settings.XboxPortalPassword ?? "");
             var ok = await svc.InstallCertificateAsync(cer, Progress(), CancellationToken.None);
             if (ok) _log.Success("Console trusts the dev certificate.");
+        }
+        finally { Unguard(); }
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        if (!Guard()) return;
+        try
+        {
+            CommitSettings();
+            using var svc = new XboxDeployService(_session.Settings.XboxPortalUrl!,
+                _session.Settings.XboxPortalUser ?? "", _session.Settings.XboxPortalPassword ?? "");
+            var ok = await svc.ReportPackagesAsync(Progress(), CancellationToken.None);
+            if (ok) _log.Success("Dev Portal connection OK.");
+            else _log.Error("Dev Portal connection failed (see log).");
         }
         finally { Unguard(); }
     }

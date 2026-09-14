@@ -16,42 +16,103 @@ namespace WiiCompiledInstaller.Services;
 public sealed class XboxDeployService : IDisposable
 {
     private readonly HttpClient _http;
-    private readonly CookieContainer _cookies = new();
     private string? _csrf;
 
     public XboxDeployService(string portalUrl, string user, string password)
     {
         var handler = new HttpClientHandler
         {
-            CookieContainer = _cookies,
-            UseCookies = true,
+            // Manual cookie handling: HttpClientHandler's CookieContainer silently DROPS the
+            // portal's "Set-Cookie: CSRF-Token=..." (its value contains '+' and the container
+            // rejects it on an IP host), which left every deploy without a CSRF token.
+            UseCookies = false,
             Credentials = new NetworkCredential(user, password),
             ServerCertificateCustomValidationCallback = (_, _, _, _) => true, // dev-mode self-signed cert
         };
         _http = new HttpClient(handler) { BaseAddress = new Uri(portalUrl.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(120) };
     }
 
-    public async Task<bool> EnsureAuthAsync(CancellationToken ct)
+    /// <summary>
+    /// Seeds authentication and captures the CSRF-Token cookie. Judged by the cookie, not
+    /// the status code: the portal answers /api/os/info with 200, but the trailing-slash
+    /// variant 404s while still issuing the cookie - treating that as failure made every
+    /// deploy report "auth failed" with perfectly valid credentials.
+    /// </summary>
+    public async Task<bool> EnsureAuthAsync(IProgress<string>? progress, CancellationToken ct)
     {
-        var seed = await _http.GetAsync("api/os/info/", HttpCompletionOption.ResponseContentRead, ct);
-        if (!seed.IsSuccessStatusCode) return false;
-        foreach (Cookie c in _cookies.GetCookies(_http.BaseAddress!))
-            if (string.Equals(c.Name, "CSRF-Token", StringComparison.OrdinalIgnoreCase))
-                _csrf = c.Value;
+        _csrf = null;
+        try
+        {
+            using var seed = await _http.GetAsync("api/os/info", HttpCompletionOption.ResponseHeadersRead, ct);
+            if (seed.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                progress?.Report("Dev Portal rejected the credentials (401). Check user/password on the Deploy page.");
+                return false;
+            }
+            if (seed.Headers.TryGetValues("Set-Cookie", out var cookies))
+                foreach (var cookie in cookies)
+                {
+                    var m = Regex.Match(cookie, @"CSRF-Token=([^;]+)", RegexOptions.IgnoreCase);
+                    if (m.Success) _csrf = m.Groups[1].Value;
+                }
+        }
+        catch (HttpRequestException e)
+        {
+            progress?.Report($"Cannot reach the console at {_http.BaseAddress} ({e.Message}). " +
+                             "Is it powered on, in Dev Mode, with the Developer Portal running?");
+            return false;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            progress?.Report($"Timed out reaching the console at {_http.BaseAddress}.");
+            return false;
+        }
+        if (_csrf == null)
+            progress?.Report("Dev Portal did not issue a CSRF token (unexpected response). Is this a Dev Mode portal?");
         return _csrf != null;
+    }
+
+    /// <summary>Connection test: auths and lists the console's deployed packages.</summary>
+    public async Task<bool> ReportPackagesAsync(IProgress<string> progress, CancellationToken ct)
+    {
+        if (!await EnsureAuthAsync(progress, ct)) return false;
+        var response = await _http.GetAsync("api/app/packagemanager/packages", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            progress.Report($"package list query failed: {(int)response.StatusCode} {response.ReasonPhrase}");
+            return false;
+        }
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        var total = 0;
+        var ours = new List<string>();
+        if (doc.RootElement.TryGetProperty("InstalledPackages", out var list))
+            foreach (var pkg in list.EnumerateArray())
+            {
+                total++;
+                var full = pkg.TryGetProperty("PackageFullName", out var n) ? n.GetString() : null;
+                if (full != null && full.Contains("e2f1c9a4", StringComparison.OrdinalIgnoreCase)) ours.Add(full);
+            }
+        progress.Report($"Console reachable; {total} package(s) installed.");
+        foreach (var p in ours) progress.Report($"  WiiCompiled package: {p}");
+        if (ours.Count == 0) progress.Report("  (no WiiCompiled packages installed yet)");
+        return true;
     }
 
     private HttpRequestMessage WithCsrf(HttpMethod method, string path)
     {
         var request = new HttpRequestMessage(method, path);
-        if (_csrf != null) request.Headers.Add("X-CSRF-Token", _csrf);
+        if (_csrf != null)
+        {
+            request.Headers.Add("X-CSRF-Token", _csrf);
+            request.Headers.TryAddWithoutValidation("Cookie", $"CSRF-Token={_csrf}");
+        }
         return request;
     }
 
     /// <summary>Installs the developer certificate (.cer) so the signed appx is trusted. Safe to repeat.</summary>
     public async Task<bool> InstallCertificateAsync(string cerPath, IProgress<string> progress, CancellationToken ct)
     {
-        if (!await EnsureAuthAsync(ct)) { progress.Report("Dev Portal auth failed (check IP/user/password)."); return false; }
+        if (!await EnsureAuthAsync(progress, ct)) return false;
         var body = new MultipartFormDataContent();
         var content = new ByteArrayContent(await File.ReadAllBytesAsync(cerPath, ct));
         content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
@@ -66,7 +127,7 @@ public sealed class XboxDeployService : IDisposable
     public async Task<bool> DeployAppxAsync(string appxPath, string expectVersion,
         IProgress<string> progress, CancellationToken ct)
     {
-        if (!await EnsureAuthAsync(ct)) { progress.Report("Dev Portal auth failed (check IP/user/password)."); return false; }
+        if (!await EnsureAuthAsync(progress, ct)) return false;
         var leaf = Path.GetFileName(appxPath);
 
         progress.Report($"== Uploading {leaf} ==");
@@ -108,7 +169,7 @@ public sealed class XboxDeployService : IDisposable
 
     public async Task<bool> VerifyInstalledAsync(string expectVersion, IProgress<string> progress, CancellationToken ct)
     {
-        if (_csrf == null && !await EnsureAuthAsync(ct)) return false;
+        if (_csrf == null && !await EnsureAuthAsync(progress, ct)) return false;
         var response = await _http.GetAsync("api/app/packagemanager/packages", ct);
         if (!response.IsSuccessStatusCode) { progress.Report("package list query failed."); return false; }
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));

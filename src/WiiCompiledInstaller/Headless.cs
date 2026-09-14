@@ -10,7 +10,7 @@ namespace WiiCompiledInstaller;
 public static class Headless
 {
     private static readonly string[] Known =
-    { "clone", "preflight", "bootstrap", "translate", "configure", "build", "package", "deploy", "all" };
+    { "clone", "preflight", "bootstrap", "translate", "configure", "build", "package", "deploy", "portal-check", "all" };
 
     public static int Run(string[] steps)
     {
@@ -85,6 +85,19 @@ public static class Headless
             if (step == "deploy")
             {
                 ok &= DeployAsync(settings, layout, progress).Result;
+                continue;
+            }
+            if (step == "portal-check")
+            {
+                if (string.IsNullOrWhiteSpace(settings.XboxPortalUrl) ||
+                    string.IsNullOrWhiteSpace(settings.XboxPortalPassword))
+                {
+                    Console.Error.WriteLine("Xbox portal URL/password not configured (settings.json or the Deploy page).");
+                    ok = false; continue;
+                }
+                using var svc = new XboxDeployService(settings.XboxPortalUrl, settings.XboxPortalUser ?? "",
+                                                      settings.XboxPortalPassword ?? "");
+                ok &= svc.ReportPackagesAsync(progress, CancellationToken.None).Result;
                 continue;
             }
             if (step == "build")
