@@ -9,7 +9,7 @@
     <AssemblyName>WiiCompiled-UWP-Installer</AssemblyName>
     <RootNamespace>WiiCompiledInstaller</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
     <Product>WiiCompiled UWP Installer</Product>
     <Copyright>GPL-3.0</Copyright>
     <!-- Portable publish defaults; see publish.ps1. Single-file: the .NET runtime is
