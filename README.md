@@ -1,4 +1,9 @@
-﻿# WiiCompiled-UWP-Installer
+<div align="center">
+    <img width="508" height="375" alt="WiiCompiled-UWP-Installer GUI" src="https://github.com/user-attachments/assets/1378f95e-7794-4670-8ebf-fa631a2b9517" />
+</div>
+
+
+# WiiCompiled-UWP-Installer
 
 A portable Windows GUI that automates building the **WiiCompiled** UWP package
 (.appx) for Xbox Series consoles, with Retro Rewind support and one-click
