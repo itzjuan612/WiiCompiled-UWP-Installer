@@ -11,7 +11,6 @@ public sealed class AppSettings
 {
     // --- Workspace / repo ---------------------------------------------------
     /// <summary>Folder that contains (or will contain) the cloned WiiCompiled repo.</summary>
-    [JsonIgnore]
     public string WorkspaceDir { get; set; } = "";
 
     /// <summary>The upstream repository to clone when the workspace is empty.</summary>
