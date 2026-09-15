@@ -102,8 +102,21 @@ public sealed class ConfigPage : UserControl
         _workers.Value = defaults.PipelineCompileWorkers;
         _prewarm.Value = defaults.PrewarmMinFreeMb;
         _hotkey.Text = defaults.OverlayHotkey;
-        _version.Text = _session.Settings.PackageVersion;
+        // Default the package version to whatever the latest checkout already declares (it
+        // moves with every upstream release); the user can still override it here.
+        var manifestVersion = TryReadManifestVersion();
+        _version.Text = manifestVersion ?? _session.Settings.PackageVersion;
+        if (manifestVersion is not null && manifestVersion != _session.Settings.PackageVersion)
+            _log.Info($"Package version defaults to the repo's current version ({manifestVersion}); " +
+                      $"stored setting is {_session.Settings.PackageVersion}. Change it here if you need a different one.");
         _log.Info($"Loaded packaged defaults from {ConfigPath}");
+    }
+
+    private string? TryReadManifestVersion()
+    {
+        var layout = new WorkspaceLayout(_session.Settings.WorkspaceDir);
+        if (!File.Exists(layout.Manifest)) return null;
+        return new PackagingService(layout).Version();
     }
 
     private Task ApplyAsync()

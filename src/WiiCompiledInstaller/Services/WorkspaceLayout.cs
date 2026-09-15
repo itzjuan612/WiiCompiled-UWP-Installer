@@ -81,6 +81,10 @@ public sealed class RepoService
         if (File.Exists(Path.Combine(ready, "Launcher", "build-uwp-msvc.ps1")))
         {
             log.Report($"Workspace already has the repo: {ready}");
+            // Re-clicking Clone / Open also refreshes the checkout, so new upstream
+            // commits (releases) are picked up without a manual git pull; a failed
+            // pull keeps the current checkout usable.
+            await PullAsync(new WorkspaceLayout(ready), log, ct).ConfigureAwait(false);
             return ready;
         }
 
