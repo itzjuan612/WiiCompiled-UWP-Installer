@@ -34,7 +34,7 @@ public static class CertificateService
             "$thumb = (New-SelfSignedCertificate -Subject '" + subject.Replace("'", "''") + "' " +
             "-CertStoreLocation Cert:\\CurrentUser\\My -KeyExportPolicy Exportable " +
             "-KeyLength 2048 -Provider 'Microsoft Enhanced RSA and AES Cryptographic Provider' " +
-            "-TextExtension 2.5.29.37={text}1.3.6.1.5.5.7.3.3 -NotAfter (Get-Date).AddYears(5)).Thumbprint\n" +
+            "-TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3') -NotAfter (Get-Date).AddYears(5)).Thumbprint\n" +
             "$sec = ConvertTo-SecureString '" + password.Replace("'", "''") + "' -AsPlainText -Force\n" +
             "Export-PfxCertificate -Cert Cert:\\CurrentUser\\My\\$thumb -FilePath $pfx -Password $sec | Out-Null\n" +
             "Export-Certificate -Cert Cert:\\CurrentUser\\My\\$thumb -FilePath $cer | Out-Null\n" +
